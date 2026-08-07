@@ -1,0 +1,21 @@
+[package]
+name = "yuehai_bookmark"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Rust 事实上的异步标准运行时（Runtime），提供事件循环、异步 I/O、定时器等底层多线程并发支持
+tokio = { version = "1.53.1", features = ["full"] }
+# 轻量级 Web 框架，基于 Tower 和 Hyper 构建，支持异步处理请求和响应
+axum = "0.8.9"
+# 轻量级的 HTTP 客户端库，支持异步请求和响应处理
+serde = { version = "1.0.229", features = ["derive"] }
+# 用于序列化和反序列化 JSON 数据的库，支持将 Rust 数据结构转换为 JSON 格式，或将 JSON 数据解析为 Rust 数据结构
+serde_json = "1.0.151"
+# 用于处理环境变量的库，支持从 .env 文件中加载配置，并提供类型安全的访问方式
+dotenvy = "0.15"
+# 用于处理 PostgreSQL 数据库的异步库，支持 SQL 查询和事务处理
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros"] }
+# 用于处理错误的库，提供了一个简单的方式来定义和处理自定义错误类型
+thiserror = "2.0.19"
+
