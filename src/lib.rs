@@ -3,11 +3,11 @@
 //! `main.rs` 只负责启动 HTTP 服务，需要的业务代码都需要通过 `lib.rs` 导出
 //! 使集成测试或其他二进制程序能够复用同一套应用逻辑
 
-/// 导出配置模块，负责加载环境变量等启动配置
-pub mod config;
-/// 导出核心模块，存放全局错误、响应与共享状态
-pub mod core;
-/// 导出业务领域模块，按具体业务组织 HTTP 与数据访问逻辑
-pub mod domains;
-/// 导出基础设施模块，负责数据库等外部资源
-pub mod infrastructure;
+/// 应用装配：配置、全局状态、顶层路由和日志初始化
+pub mod app;
+/// 跨业务模块、长期稳定复用的通用能力
+pub mod common;
+/// 外部技术适配：不承载 auth、bookmarks 等业务规则
+pub mod infra;
+/// 业务模块：按具体业务组织 HTTP 与数据访问逻辑
+pub mod modules;
