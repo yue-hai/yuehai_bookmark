@@ -12,9 +12,9 @@ use axum::routing::post;
 pub fn router() -> Router<AppState> {
     // 创建一个空路由器作为当前领域的路由根
     Router::new()
+        // 注册 /api/auth/register
+        .route("/auth/register", post(handlers::user::register))
         // 登录 /api/auth/login
         .route("/auth/login", post(handlers::auth::login))
-        // 注册 /api/auth/register
-        // .route("/auth/register", post(handlers::register::handle))
 }
 

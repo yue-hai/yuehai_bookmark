@@ -36,6 +36,8 @@ pub enum AppError {
 impl IntoResponse for AppError {
     /// 消费错误对象，并生成状态码与 JSON 响应体。
     fn into_response(self) -> axum::response::Response {
+        eprintln!("请求处理失败：{self:?}");
+        
         // 根据具体错误类型计算 HTTP 状态码和对外错误消息。
         let status = match &self {
             // 400 请求参数错误

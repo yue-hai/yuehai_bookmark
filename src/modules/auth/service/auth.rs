@@ -17,19 +17,11 @@ use crate::modules::auth::repository::{auth, user};
 /// # Returns
 /// * `Result<LoginResponse, AppError>`：成功时返回登录响应，包含用户信息和 Session Token，失败时返回应用错误
 pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginResponse, AppError> {
-    // 去除邮箱首尾空白并统一转小写
-    let email = request.email.trim().to_lowercase();
-    // 邮箱不可为空
-    if email.is_empty() {
-        return Err(AppError::BadRequest("邮箱不能为空"));
-    }
-    // 密码不可为空
-    if request.password.is_empty() {
-        return Err(AppError::BadRequest("密码不能为空"));
-    }
+    // 验证登录请求，确保邮箱和密码符合要求
+    let request = request.validate()?;
     
     // 查询未删除且状态为 active 的用户凭据
-    let user = user::find_active_user_by_email(&state.database_url, &email).await?;
+    let user = user::find_active_user_by_email(&state.database_url, &request.email).await?;
     // 用户不存在或已禁用时返回统一凭据错误，不泄露具体原因
     let user = user.ok_or(AppError::InvalidCredentials)?;
 
@@ -40,10 +32,10 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
 
     // 生成原始 Token，并生成只保存到数据库的 Argon2 哈希值
     let (access_token, token_hash) = issue_session_token()?;
-    // 持久化当前用户的 Session Token 哈希和过期时间
+    // 持久化当前用户的 Session Token 哈希
     auth::insert_session(&state.database_url, user.id, &token_hash).await?;
     
-    // 构造并返回登录成功响应，包含用户信息、客户端需要的原始 Token 和 Token 类型
+    // 构造并返回登录成功响应
     Ok(LoginResponse::from_user(user, access_token, "Bearer"))
 }
 
@@ -51,7 +43,7 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
 /// 
 /// # Returns
 /// * `Result<(String, String), AppError>`：成功时返回原始 Token和数据库哈希，失败时返回应用错误
-fn issue_session_token() -> Result<(String, String), AppError> {
+pub(crate) fn issue_session_token() -> Result<(String, String), AppError> {
     // 创建由操作系统提供熵的安全随机数生成器
     let mut random = OsRng;
     // 准备 32 字节随机数据，即 256 位熵

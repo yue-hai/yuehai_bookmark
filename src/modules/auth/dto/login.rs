@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::{DateTime, Utc};
+use crate::common::error::AppError;
 use crate::modules::auth::model::user::{SystemRole, User, UserStatus};
 
 // 登录请求体结构体
@@ -37,6 +38,33 @@ pub struct LoginResponse {
     pub access_token: String,
     /// Token 类型，明确客户端应以 Bearer 方式使用该 Token
     pub token_type: &'static str,
+}
+
+/// LoginRequest 的实现块
+impl LoginRequest {
+    /// 验证登录请求
+    /// 
+    /// # Arguments
+    /// * `self`：登录请求实例
+    /// 
+    /// # Returns
+    /// * `Result<Self, AppError>`：成功时返回清理后的登录请求，失败时返回应用错误
+    pub fn validate(&self) -> Result<Self, AppError> {
+        // 去除邮箱首尾空白并统一转小写
+        let email = self.email.trim().to_lowercase();
+        // 邮箱不可为空
+        if email.is_empty() {
+            return Err(AppError::BadRequest("邮箱不能为空"));
+        }
+        
+        // 密码不可为空
+        if self.password.is_empty() {
+            return Err(AppError::BadRequest("密码不能为空"));
+        }
+        
+        // 返回清理后的登录请求
+        Ok(Self { email, password: self.password.clone() })
+    }
 }
 
 /// LoginResponse 的实现块
