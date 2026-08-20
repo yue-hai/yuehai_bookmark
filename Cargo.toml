@@ -12,8 +12,8 @@ axum = { version = "0.8.9", features = ["json"] }
 # 轻量级的 HTTP 客户端库，支持异步请求和响应处理
 serde = { version = "1.0.229", features = ["derive"] }
 # 用于处理 PostgreSQL 数据库的异步库，支持 SQL 查询和事务处理
-sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "migrate", "macros", "chrono", "ipnetwork"] }
-# 用于处理日期和时间的库，提供了丰富的日期时间类型和操作方法，并支持序列化和反序列化
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "macros", "chrono"] }
+# sqlx 库的日期时间处理功能，让 SQLx 知道如何在 PostgreSQL 和 Chrono 时间类型之间转换
 chrono = { version = "0.4", features = ["serde"] }
 # 用于处理环境变量的库，支持从 .env 文件中加载配置，并提供类型安全的访问方式
 dotenvy = "0.15"
@@ -22,5 +22,5 @@ thiserror = "2.0.19"
 
 # 用于处理密码哈希的库，支持 Argon2 算法
 argon2 = "0.5"
-# 通过操作系统安全随机源生成不可预测的 Session Token
-rand_core = { version = "0.6", features = ["getrandom"] }
+# 用于生成随机数的库，提供了多种随机数生成器和分布
+getrandom = "0.4.3"

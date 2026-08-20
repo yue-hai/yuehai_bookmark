@@ -2,7 +2,6 @@
 
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
-use rand_core::OsRng;
 use crate::app::state::AppState;
 use crate::common::error::AppError;
 use crate::modules::auth::dto::login::LoginResponse;
@@ -21,8 +20,12 @@ pub async fn register(state: &AppState, request: RegisterRequest) -> Result<Logi
     // 验证注册请求，确保参数符合要求
     let request = request.validate()?;
 
-    // 生成一个密码学安全的随机盐值，使用操作系统底层提供的随机数发生器保证足够高的随机熵
-    let salt = SaltString::generate(&mut OsRng);
+    // 声明一个长度为 32 字节的数组，初始化为全 0，用于存放即将生成的安全随机盐值
+    let mut salt_bytes = [0_u8; 32];
+    // 调用操作系统底层的安全随机数生成器（如 Linux 的 /dev/urandom）填充数组，若失败（如系统熵池耗尽）则映射为内部错误
+    getrandom::fill(&mut salt_bytes).map_err(|_| AppError::Internal)?;
+    // 将 32 字节的原始随机数据编码为符合密码学规范的 Base64 格式盐值字符串，解析失败则抛出内部错误
+    let salt = SaltString::encode_b64(&salt_bytes).map_err(|_| AppError::Internal)?;
     // 使用 Argon2 算法对用户的明文密码进行哈希
     let password_hash = Argon2::default()
         .hash_password(request.password.as_bytes(), &salt) // 将明文密码和随机盐传入 Argon2 哈希函数

@@ -88,7 +88,7 @@ COMMENT ON TABLE users IS '系统用户账号；密码只保存哈希，系统�
 CREATE TABLE auth_sessions (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, -- id：会话主键；由 PostgreSQL 自动生成
     user_id         BIGINT NOT NULL,                                 -- user_id：所属用户；用户删除时级联删除其全部会话
-    token_hash      VARCHAR(128) NOT NULL,                           -- token_hash：不能为空且全局唯一；禁止保存原始 Token
+    token_hash      VARCHAR(255) NOT NULL,                           -- token_hash：不能为空且全局唯一；禁止保存原始 Token
     expires_at      TIMESTAMPTZ NOT NULL,                            -- expires_at：过期时间；由 Rust 认证服务校验
     last_used_at    TIMESTAMPTZ,                                     -- last_used_at：最近使用时间；记录最后一次有效访问
     revoked_at      TIMESTAMPTZ,                                     -- revoked_at：撤销时间；为空表示会话未撤销

@@ -5,7 +5,6 @@ use crate::common::error::AppError;
 use crate::modules::auth::dto::login::{LoginRequest, LoginResponse};
 use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand_core::{OsRng, RngCore};
 use crate::modules::auth::repository::{auth, user};
 
 /// 登录 service，处理登录请求的业务逻辑，包括验证用户凭据、生成 Session Token 并返回给客户端
@@ -44,26 +43,25 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
 /// # Returns
 /// * `Result<(String, String), AppError>`：成功时返回原始 Token和数据库哈希，失败时返回应用错误
 pub(crate) fn issue_session_token() -> Result<(String, String), AppError> {
-    // 创建由操作系统提供熵的安全随机数生成器
-    let mut random = OsRng;
-    // 准备 32 字节随机数据，即 256 位熵
+    // 声明一个长度为 32 字节的数组，初始化为全 0，作为承接安全随机源的缓冲区
     let mut token_bytes = [0_u8; 32];
-    // 使用操作系统安全随机源填满 Token 字节数组。
-    random.fill_bytes(&mut token_bytes);
+    // 调用操作系统底层的安全随机数生成器（如 Linux 的 /dev/urandom）填充数组，若失败（如系统熵池耗尽）则映射为内部错误
+    getrandom::fill(&mut token_bytes).map_err(|_| AppError::Internal)?;
+    // 将 32 个随机字节通过迭代器逐一转换为两位的十六进制小写字符 (`{byte:02x}`)，最终拼接拼装成 64 字符长度的明文 Token 字符串
+    let access_token = token_bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
 
-    // 遍历随机字节，以构造可安全放入 HTTP Header 的文本 Token
-    let access_token = token_bytes
-        .iter() // 逐个借用数组中的字节
-        .map(|byte| format!("{byte:02x}")) // 将每个字节编码为固定两位十六进制文本
-        .collect::<String>(); // 合并为 64 个字符的原始 Token
+    // 因为要把 Token Hash 落盘，所以这里再次在栈上分配 32 字节空间，用于存放 Token Hash 专用的盐值
+    let mut salt_bytes = [0_u8; 32];
+    // 调用操作系统底层的安全随机数生成器填充盐值数组，若失败则映射为内部错误
+    getrandom::fill(&mut salt_bytes).map_err(|_| AppError::Internal)?;
 
-    // 为 Token 哈希生成独立随机盐，避免可预计算攻击
-    let salt = SaltString::generate(&mut random);
-    // 创建默认的 Argon2id 哈希器
+    // 将 32 字节的原始随机数据编码为符合密码学规范的 Base64 格式盐值字符串，解析失败则抛出内部错误
+    let salt = SaltString::encode_b64(&salt_bytes).map_err(|_| AppError::Internal)?;
+    // 使用 Argon2 算法对用户的明文密码进行哈希
     let token_hash = Argon2::default()
-        .hash_password(access_token.as_bytes(), &salt) // 对原始 Token 进行不可逆哈希
-        .map_err(|_| AppError::Internal)? // 若哈希器发生内部错误则返回安全的 500 错误
-        .to_string(); // 将 PHC 格式哈希转换为可存入 auth_sessions.token_hash 的字符串
+        .hash_password(access_token.as_bytes(), &salt) // 将明文 token 和随机盐传入 Argon2 哈希函数
+        .map_err(|_| AppError::Internal)? // 如果底层的哈希计算意外失败（如内存耗尽等），安全地映射为应用层的内部错误
+        .to_string(); // 将生成的哈希值转换为字符串，该字符串会自动包含算法参数、盐和哈希结果，便于日后校验
 
     // 同时返回客户端原始 Token 和数据库安全哈希
     Ok((access_token, token_hash))

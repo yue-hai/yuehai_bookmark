@@ -1,7 +1,7 @@
 //! 登录相关 DTO
 
 use serde::{Deserialize, Serialize};
-use sqlx::types::chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc};
 use crate::common::error::AppError;
 use crate::modules::auth::model::user::{SystemRole, User, UserStatus};
 
