@@ -32,8 +32,10 @@ pub async fn register(state: &AppState, request: RegisterRequest) -> Result<Logi
         .map_err(|_| AppError::Internal)? // 如果底层的哈希计算意外失败（如内存耗尽等），安全地映射为应用层的内部错误
         .to_string(); // 将生成的哈希值转换为字符串，该字符串会自动包含算法参数、盐和哈希结果，便于日后校验
 
+    // 从连接池取得一条连接，并开始数据库事务
+    let mut transaction = state.database_pool.begin().await?;
     // 尝试异步将新注册的用户信息插入数据库
-    let new_user = match user::insert_user(&state.database_url, &request.email, &password_hash, &request.display_name ).await {
+    let new_user = match user::insert_user(&mut transaction, &request.email, &password_hash, &request.display_name).await {
         // 插入成功，提取出构建好的新 User 实体
         Ok(user) => user,
 
@@ -52,7 +54,9 @@ pub async fn register(state: &AppState, request: RegisterRequest) -> Result<Logi
     // 签发 Token，实现注册即登录
     let (access_token, token_hash) = crate::modules::auth::service::auth::issue_session_token()?;
     // 持久化当前用户的 Session Token 哈希
-    auth::insert_session(&state.database_url, new_user.id, &token_hash ).await?;
+    auth::insert_session(&mut transaction, new_user.id, &token_hash, state.token_expire_days).await?;
+    // 只有 users 与 auth_sessions 都成功写入时才提交事务，否则在函数返回时自动回滚，保证数据一致性
+    transaction.commit().await?;
 
     // 构造并返回登录成功响应
     Ok(LoginResponse::from_user(new_user, access_token, "Bearer"))

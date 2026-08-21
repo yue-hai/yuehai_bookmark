@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use sqlx::types::chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc};
 
 /// 系统角色枚举
 #[derive(sqlx::Type, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

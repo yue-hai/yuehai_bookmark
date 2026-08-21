@@ -1,7 +1,7 @@
 //! 认证会话模型
 
 use sqlx::FromRow;
-use sqlx::types::chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc};
 use std::net::IpAddr;
 
 /// 认证会话模型

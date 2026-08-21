@@ -15,9 +15,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config = config::from_env();
 
     // 创建 PostgreSQL 连接池
-    let database_url = pool::init_pool(&config.database_url).await?;
+    let database_pool = pool::init_pool(&config.database_url).await?;
     // 创建 Axum 请求共享状态
-    let state = AppState { database_url };
+    let state = AppState { database_pool, token_expire_days: config.token_expire_days };
     // 创建包含所有业务模块路由的应用 Router
     let app = router::build(state);
     

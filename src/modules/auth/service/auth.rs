@@ -20,7 +20,7 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
     let request = request.validate()?;
     
     // 查询未删除且状态为 active 的用户凭据
-    let user = user::find_active_user_by_email(&state.database_url, &request.email).await?;
+    let user = user::find_active_user_by_email(&state.database_pool, &request.email).await?;
     // 用户不存在或已禁用时返回统一凭据错误，不泄露具体原因
     let user = user.ok_or(AppError::InvalidCredentials)?;
 
@@ -31,8 +31,12 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
 
     // 生成原始 Token，并生成只保存到数据库的 Argon2 哈希值
     let (access_token, token_hash) = issue_session_token()?;
+    // 从连接池取得一条连接，并开始数据库事务
+    let mut transaction = state.database_pool.begin().await?;
     // 持久化当前用户的 Session Token 哈希
-    auth::insert_session(&state.database_url, user.id, &token_hash).await?;
+    auth::insert_session(&mut transaction, user.id, &token_hash, state.token_expire_days).await?;
+    // 提交事务
+    transaction.commit().await?;
     
     // 构造并返回登录成功响应
     Ok(LoginResponse::from_user(user, access_token, "Bearer"))
