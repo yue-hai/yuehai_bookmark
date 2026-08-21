@@ -6,7 +6,7 @@ use crate::modules::auth::model::auth_session::AuthSession;
 /// 将会话信息写入数据库
 /// 
 /// # Arguments
-/// * `connection`：共享 PostgreSQL 连接池，事务持有的连接
+/// * `connection`：当前数据库事务持有的 PostgreSQL 连接
 /// * `user_id`：已认证用户的数据库主键
 /// * `token_hash`：仅可验证、不可还原的 Session Token 哈希
 /// * `token_expire_days`：会话过期天数
