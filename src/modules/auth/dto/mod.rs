@@ -4,3 +4,5 @@
 pub mod login;
 /// 注册相关 DTO
 pub mod register;
+/// 当前用户相关 DTO
+pub mod me;

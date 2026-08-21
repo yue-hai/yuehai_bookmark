@@ -5,16 +5,16 @@ use chrono::{DateTime, Utc};
 use crate::common::error::AppError;
 use crate::modules::auth::model::user::{SystemRole, User, UserStatus};
 
-// 登录请求体结构体
+/// 登录请求体结构体
 #[derive(Deserialize)]
 pub struct LoginRequest {
-    // 邮箱
+    /// 邮箱
     pub email: String,
-    // 密码
+    /// 密码
     pub password: String,
 }
 
-// 登录响应体结构体
+/// 登录响应体结构体
 #[derive(Serialize)]
 pub struct LoginResponse {
     /// 登录邮箱

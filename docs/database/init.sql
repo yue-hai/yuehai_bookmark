@@ -365,7 +365,7 @@ COMMENT ON COLUMN users.deleted_at IS '软删除时间；为空表示账号正�
 -- 7.2 auth_sessions 字段说明
 COMMENT ON COLUMN auth_sessions.id IS '会话主键；非空且由 PostgreSQL 自动生成';
 COMMENT ON COLUMN auth_sessions.user_id IS '会话所属用户；必填；用户删除时级联删除其全部会话';
-COMMENT ON COLUMN auth_sessions.token_hash IS '随机 Token 的哈希；必填且全表唯一，最长 128 个字符；数据库不保存原始 Token';
+COMMENT ON COLUMN auth_sessions.token_hash IS 'HMAC-SHA-256 计算出的随机 Token 摘要；必填且全表唯一，固定为 64 个十六进制字符；数据库不保存原始 Token';
 COMMENT ON COLUMN auth_sessions.expires_at IS '会话过期时间；必填；Rust 认证服务负责校验其晚于签发时间';
 COMMENT ON COLUMN auth_sessions.last_used_at IS '最近一次使用时间';
 COMMENT ON COLUMN auth_sessions.revoked_at IS '登出或强制失效时间；为空表示未撤销';

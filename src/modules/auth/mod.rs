@@ -2,6 +2,8 @@
 
 /// HTTP 请求和响应结构
 pub mod dto;
+/// HTTP 请求提取器
+pub mod extractors;
 /// HTTP 入口
 pub mod handlers;
 /// 数据模型

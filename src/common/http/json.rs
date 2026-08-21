@@ -13,7 +13,7 @@ pub struct AppJson<T>(pub T);
 /// * S: Send + Sync，表示状态类型必须是可发送和可同步的
 /// * T: DeserializeOwned，表示数据类型必须是可反序列化的
 impl<S, T> FromRequest<S> for AppJson<T> where S: Send + Sync, T: DeserializeOwned {
-    // 指定如果提取失败，抛出 AppError
+    // 如果提取失败，抛出 AppError
     type Rejection = AppError;
     
     /// 提取器的核心异步方法，从请求中提取 JSON 数据并进行错误处理

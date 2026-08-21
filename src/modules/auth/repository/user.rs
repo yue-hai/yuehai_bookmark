@@ -6,7 +6,7 @@ use crate::modules::auth::model::user::User;
 /// 用户注册
 /// 
 /// # Arguments
-/// * `connection`：共享 PostgreSQL 连接池，事物持有的连接
+/// * `connection`：共享 PostgreSQL 连接池，事务持有的连接
 /// * `email`：Service 已规范化的邮箱字符串切片
 /// * `password_hash`：Service 已哈希的密码字符串切片
 /// * `display_name`：Service 已规范化的显示名称字符串切片

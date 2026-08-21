@@ -3,7 +3,7 @@
 use crate::app::state::AppState;
 use crate::modules::auth::handlers;
 use axum::Router;
-use axum::routing::post;
+use axum::routing::{get, post};
 
 /// 创建携带 AppState 类型约束子路由
 /// 
@@ -16,5 +16,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/register", post(handlers::user::register))
         // 登录 /api/auth/login
         .route("/auth/login", post(handlers::auth::login))
+        // 获取当前登录用户 /api/auth/me
+        .route("/auth/me", get(handlers::auth::me))
 }
 
