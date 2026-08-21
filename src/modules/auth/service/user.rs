@@ -1,13 +1,12 @@
 //! 用户相关 service
 
-use argon2::{Argon2, PasswordHasher};
-use argon2::password_hash::SaltString;
 use crate::app::state::AppState;
 use crate::common::error::AppError;
 use crate::modules::auth::dto::login::LoginResponse;
 use crate::modules::auth::dto::register::RegisterRequest;
 use crate::modules::auth::repository::{auth, user};
 use crate::modules::auth::service::auth::issue_session_token;
+use crate::modules::auth::service::password;
 
 /// 注册 service，处理注册请求的业务逻辑，包括验证用户信息、创建新用户并返回给客户端
 /// 
@@ -21,17 +20,8 @@ pub async fn register(state: &AppState, request: RegisterRequest) -> Result<Logi
     // 验证注册请求，确保参数符合要求
     let request = request.validate()?;
 
-    // 声明一个长度为 32 字节的数组，初始化为全 0，用于存放即将生成的安全随机盐值
-    let mut salt_bytes = [0_u8; 32];
-    // 调用操作系统底层的安全随机数生成器（如 Linux 的 /dev/urandom）填充数组，若失败（如系统熵池耗尽）则映射为内部错误
-    getrandom::fill(&mut salt_bytes).map_err(|_| AppError::Internal)?;
-    // 将 32 字节的原始随机数据编码为符合密码学规范的 Base64 格式盐值字符串，解析失败则抛出内部错误
-    let salt = SaltString::encode_b64(&salt_bytes).map_err(|_| AppError::Internal)?;
-    // 使用 Argon2 算法对用户的明文密码进行哈希
-    let password_hash = Argon2::default()
-        .hash_password(request.password.as_bytes(), &salt) // 将明文密码和随机盐传入 Argon2 哈希函数
-        .map_err(|_| AppError::Internal)? // 如果底层的哈希计算意外失败（如内存耗尽等），安全地映射为应用层的内部错误
-        .to_string(); // 将生成的哈希值转换为字符串，该字符串会自动包含算法参数、盐和哈希结果，便于日后校验
+    // 在 Tokio 专用阻塞线程池中使用 Argon2 哈希用户密码，避免占用异步工作线程
+    let password_hash = password::hash_password(request.password).await?;
 
     // 从连接池取得一条连接，并开始数据库事务
     let mut transaction = state.database_pool.begin().await?;

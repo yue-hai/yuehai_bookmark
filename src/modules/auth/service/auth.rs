@@ -3,11 +3,11 @@
 use crate::app::state::AppState;
 use crate::common::error::AppError;
 use crate::modules::auth::dto::login::{LoginRequest, LoginResponse};
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use crate::modules::auth::model::user::User;
 use crate::modules::auth::repository::{auth, user};
+use crate::modules::auth::service::password;
 
 /// 登录 service，处理登录请求的业务逻辑，包括验证用户凭据、生成 Session Token 并返回给客户端
 /// 
@@ -23,10 +23,8 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
     
     // 查询未删除且状态为 active 的用户凭据，用户不存在或已禁用时返回统一凭据错误
     let user = user::find_active_user_by_email(&state.database_pool, &request.email).await?.ok_or(AppError::InvalidCredentials)?;
-    // 解析数据库中密码哈希
-    let password_hash = PasswordHash::new(&user.password_hash).map_err(|_| AppError::Internal)?;
-    // 创建默认的 Argon2id 密码校验器，使用客户端明文密码与数据库哈希进行安全比对，密码不匹配时统一返回凭据错误
-    Argon2::default().verify_password(request.password.as_bytes(), &password_hash).map_err(|_| AppError::InvalidCredentials)?;
+    // 在 Tokio 专用阻塞线程池中验证密码，避免 Argon2 占用异步工作线程
+    password::verify_password(request.password, user.password_hash.clone() ).await?;
     
     // 生成原始 Token，并计算只保存到数据库中的 HMAC
     let (access_token, token_hash) = issue_session_token(state.token_hash_secret.as_bytes())?;
