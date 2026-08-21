@@ -1,8 +1,9 @@
 //! 认证会话数据访问层
 
-use sqlx::{PgConnection};
+use sqlx::{PgConnection, PgPool};
+use crate::modules::auth::model::auth_session::AuthSession;
 
-/// 为已成功验证密码的用户创建服务端登录会
+/// 将会话信息写入数据库
 /// 
 /// # Arguments
 /// * `connection`：共享 PostgreSQL 连接池，事物持有的连接
@@ -26,4 +27,28 @@ pub async fn insert_session(connection: &mut PgConnection, user_id: i64, token_h
         .execute(connection) // 在连接池中异步执行会话插入
         .await?; // 等待写入完成，并将 SQLx 错误向上传播
     Ok(()) // 明确表示会话创建成功
+}
+
+/// 根据 HMAC 后的 Token 哈希查询有效 Session
+///
+/// # Arguments
+/// * `pool`：共享 PostgreSQL 连接池
+/// * `token_hash`：仅可验证、不可还原的 Session Token 哈希
+/// 
+/// # Returns
+/// * `Result<Option<AuthSession>, sqlx::Error>`：成功时返回 Some(AuthSession) 或 None，失败时返回 SQLx 错误
+pub async fn find_active_session(pool: &PgPool, token_hash: &str, ) -> Result<Option<AuthSession>, sqlx::Error> {
+    // 只查询未过期且未撤销的 Session
+    sqlx::query_as::<_, AuthSession>(
+        r#"
+        SELECT id, user_id, token_hash, expires_at, last_used_at, revoked_at, ip_address, user_agent, created_at
+        FROM auth_sessions
+        WHERE token_hash = $1
+            AND expires_at > CURRENT_TIMESTAMP
+            AND revoked_at IS NULL
+        "#,
+    )
+        .bind(token_hash)
+        .fetch_optional(pool)
+        .await
 }

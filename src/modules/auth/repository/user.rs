@@ -52,3 +52,27 @@ pub async fn find_active_user_by_email(pool: &PgPool, email: &str) -> Result<Opt
         .fetch_optional(pool) // 查询零行或一行用户记录
         .await
 }
+
+/// 按用户 ID 查询可以使用系统的用户
+///
+/// # Arguments
+/// * `pool`：共享 PostgreSQL 连接池
+/// * `user_id`：用户 ID
+///
+/// # Returns
+/// * `Result<Option<User>, sqlx::Error>`：成功时返回 Some(User) 或 None，失败时返回 SQLx 错误
+pub async fn find_active_user_by_id(pool: &PgPool, user_id: i64, ) -> Result<Option<User>, sqlx::Error> {
+    // Token 有效不代表用户永远有效，所以这里再次检查用户状态
+    sqlx::query_as::<_, User>(
+        r#"
+        SELECT id, email, password_hash, display_name, system_role, status, email_verified_at, last_login_at, created_at, updated_at, deleted_at
+        FROM users
+        WHERE id = $1
+            AND status = 'active'
+            AND deleted_at IS NULL
+        "#,
+    )
+        .bind(user_id) // 将用户 ID 安全绑定为 PostgreSQL 的第一个参数，避免 SQL 注入
+        .fetch_optional(pool)// 查询零行或一行用户记录
+        .await
+}

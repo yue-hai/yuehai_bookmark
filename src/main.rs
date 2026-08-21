@@ -17,13 +17,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // 创建 PostgreSQL 连接池
     let database_pool = pool::init_pool(&config.database_url).await?;
     // 创建 Axum 请求共享状态
-    let state = AppState { database_pool, token_expire_days: config.token_expire_days };
+    let state = AppState { token_expire_days: config.token_expire_days, token_hash_secret: config.token_hash_secret, database_pool };
     // 创建包含所有业务模块路由的应用 Router
     let app = router::build(state);
     
     // 异步绑定监听地址、TCP 端口
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await.expect("无法绑定 HTTP 服务监听地址");
-    println!("🚀 服务启动成功，监听地址: http://{}", listener.local_addr()?);
+    eprintln!("🚀 服务启动成功，监听地址: http://{}", listener.local_addr()?);
     
     // 将监听器和 Router 交给 Axum，持续处理 HTTP 请求
     axum::serve(listener, app).await?;

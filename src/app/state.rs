@@ -9,8 +9,11 @@ use sqlx::PgPool;
 #[derive(Clone)]
 /// 应用全局状态上下文容器
 pub struct AppState {
-    /// 异步数据库连接池句柄，所有的 Handler 均通过该句柄派发 SQL 操作，实现单例级别的高并发网络复用
-    pub database_pool: PgPool,
     /// token 过期时间（天）
     pub token_expire_days: i32,
+    /// token hash 秘钥
+    pub token_hash_secret: String,
+
+    /// 异步数据库连接池句柄，所有的 Handler 均通过该句柄派发 SQL 操作，实现单例级别的高并发网络复用
+    pub database_pool: PgPool,
 }

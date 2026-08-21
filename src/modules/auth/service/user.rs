@@ -7,6 +7,7 @@ use crate::common::error::AppError;
 use crate::modules::auth::dto::login::LoginResponse;
 use crate::modules::auth::dto::register::RegisterRequest;
 use crate::modules::auth::repository::{auth, user};
+use crate::modules::auth::service::auth::issue_session_token;
 
 /// 注册 service，处理注册请求的业务逻辑，包括验证用户信息、创建新用户并返回给客户端
 /// 
@@ -52,7 +53,7 @@ pub async fn register(state: &AppState, request: RegisterRequest) -> Result<Logi
     };
 
     // 签发 Token，实现注册即登录
-    let (access_token, token_hash) = crate::modules::auth::service::auth::issue_session_token()?;
+    let (access_token, token_hash) = issue_session_token(state.token_hash_secret.as_bytes())?;
     // 持久化当前用户的 Session Token 哈希
     auth::insert_session(&mut transaction, new_user.id, &token_hash, state.token_expire_days).await?;
     // 只有 users 与 auth_sessions 都成功写入时才提交事务，否则在函数返回时自动回滚，保证数据一致性

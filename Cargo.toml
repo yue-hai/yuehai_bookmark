@@ -12,7 +12,7 @@ axum = { version = "0.8.9", features = ["json"] }
 # 轻量级的 HTTP 客户端库，支持异步请求和响应处理
 serde = { version = "1.0.229", features = ["derive"] }
 # 用于处理 PostgreSQL 数据库的异步库，支持 SQL 查询和事务处理
-sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "macros", "chrono"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "macros", "chrono", "ipnetwork"] }
 # sqlx 库的日期时间处理功能，让 SQLx 知道如何在 PostgreSQL 和 Chrono 时间类型之间转换
 chrono = { version = "0.4", features = ["serde"] }
 # 用于处理环境变量的库，支持从 .env 文件中加载配置，并提供类型安全的访问方式
@@ -24,3 +24,7 @@ thiserror = "2.0.19"
 argon2 = "0.5"
 # 用于生成随机数的库，提供了多种随机数生成器和分布
 getrandom = "0.4.3"
+# 用于处理 HMAC 的库，支持多种哈希算法
+hmac = "0.13"
+# 提供 SHA-256 哈希算法
+sha2 = "0.11"

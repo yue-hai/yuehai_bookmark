@@ -49,21 +49,17 @@ impl LoginRequest {
     /// 
     /// # Returns
     /// * `Result<Self, AppError>`：成功时返回清理后的登录请求，失败时返回应用错误
-    pub fn validate(&self) -> Result<Self, AppError> {
+    pub fn validate(self) -> Result<Self, AppError> {
         // 去除邮箱首尾空白并统一转小写
         let email = self.email.trim().to_lowercase();
         // 邮箱不可为空
-        if email.is_empty() {
-            return Err(AppError::BadRequest("邮箱不能为空"));
-        }
+        if email.is_empty() { return Err(AppError::BadRequest("邮箱不能为空")); }
         
         // 密码不可为空
-        if self.password.is_empty() {
-            return Err(AppError::BadRequest("密码不能为空"));
-        }
+        if self.password.is_empty() { return Err(AppError::BadRequest("密码不能为空")); }
         
         // 返回清理后的登录请求
-        Ok(Self { email, password: self.password.clone() })
+        Ok(Self { email, password: self.password })
     }
 }
 

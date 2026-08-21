@@ -3,8 +3,10 @@
 use crate::app::state::AppState;
 use crate::common::error::AppError;
 use crate::modules::auth::dto::login::{LoginRequest, LoginResponse};
-use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use hmac::{Hmac, KeyInit, Mac};
+use sha2::Sha256;
+use crate::modules::auth::model::user::User;
 use crate::modules::auth::repository::{auth, user};
 
 /// 登录 service，处理登录请求的业务逻辑，包括验证用户凭据、生成 Session Token 并返回给客户端
@@ -19,18 +21,16 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
     // 验证登录请求，确保邮箱和密码符合要求
     let request = request.validate()?;
     
-    // 查询未删除且状态为 active 的用户凭据
-    let user = user::find_active_user_by_email(&state.database_pool, &request.email).await?;
-    // 用户不存在或已禁用时返回统一凭据错误，不泄露具体原因
-    let user = user.ok_or(AppError::InvalidCredentials)?;
-
+    // 查询未删除且状态为 active 的用户凭据，用户不存在或已禁用时返回统一凭据错误
+    let user = user::find_active_user_by_email(&state.database_pool, &request.email).await?.ok_or(AppError::InvalidCredentials)?;
     // 解析数据库中密码哈希
     let password_hash = PasswordHash::new(&user.password_hash).map_err(|_| AppError::Internal)?;
     // 创建默认的 Argon2id 密码校验器，使用客户端明文密码与数据库哈希进行安全比对，密码不匹配时统一返回凭据错误
     Argon2::default().verify_password(request.password.as_bytes(), &password_hash).map_err(|_| AppError::InvalidCredentials)?;
-
-    // 生成原始 Token，并生成只保存到数据库的 Argon2 哈希值
-    let (access_token, token_hash) = issue_session_token()?;
+    
+    // 生成原始 Token，并计算只保存到数据库中的 HMAC
+    let (access_token, token_hash) = issue_session_token(state.token_hash_secret.as_bytes())?;
+    
     // 从连接池取得一条连接，并开始数据库事务
     let mut transaction = state.database_pool.begin().await?;
     // 持久化当前用户的 Session Token 哈希
@@ -42,31 +42,67 @@ pub async fn login(state: &AppState, request: LoginRequest) -> Result<LoginRespo
     Ok(LoginResponse::from_user(user, access_token, "Bearer"))
 }
 
-/// 生成原始 Token，并返回原始值与数据库哈希值
+/// 生成原始 Session Token，并返回 Token 与其 HMAC
+///
+/// # Arguments
+/// * `secret`：服务端密钥，用于计算 Token 的 HMAC
 /// 
 /// # Returns
-/// * `Result<(String, String), AppError>`：成功时返回原始 Token和数据库哈希，失败时返回应用错误
-pub(crate) fn issue_session_token() -> Result<(String, String), AppError> {
-    // 声明一个长度为 32 字节的数组，初始化为全 0，作为承接安全随机源的缓冲区
+/// * `Result<(String, String), AppError>`：成功时返回原始 Token 和 HMAC，失败时返回应用错误
+pub(crate) fn issue_session_token(secret: &[u8], ) -> Result<(String, String), AppError> {
+    // 声明 32 字节数组，用于保存安全随机数据
     let mut token_bytes = [0_u8; 32];
-    // 调用操作系统底层的安全随机数生成器（如 Linux 的 /dev/urandom）填充数组，若失败（如系统熵池耗尽）则映射为内部错误
+    // 使用操作系统安全随机源生成 Token
     getrandom::fill(&mut token_bytes).map_err(|_| AppError::Internal)?;
-    // 将 32 个随机字节通过迭代器逐一转换为两位的十六进制小写字符 (`{byte:02x}`)，最终拼接拼装成 64 字符长度的明文 Token 字符串
+    
+    // 将随机字节编码为 64 个十六进制字符
     let access_token = token_bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-
-    // 因为要把 Token Hash 落盘，所以这里再次在栈上分配 32 字节空间，用于存放 Token Hash 专用的盐值
-    let mut salt_bytes = [0_u8; 32];
-    // 调用操作系统底层的安全随机数生成器填充盐值数组，若失败则映射为内部错误
-    getrandom::fill(&mut salt_bytes).map_err(|_| AppError::Internal)?;
-
-    // 将 32 字节的原始随机数据编码为符合密码学规范的 Base64 格式盐值字符串，解析失败则抛出内部错误
-    let salt = SaltString::encode_b64(&salt_bytes).map_err(|_| AppError::Internal)?;
-    // 使用 Argon2 算法对用户的明文密码进行哈希
-    let token_hash = Argon2::default()
-        .hash_password(access_token.as_bytes(), &salt) // 将明文 token 和随机盐传入 Argon2 哈希函数
-        .map_err(|_| AppError::Internal)? // 如果底层的哈希计算意外失败（如内存耗尽等），安全地映射为应用层的内部错误
-        .to_string(); // 将生成的哈希值转换为字符串，该字符串会自动包含算法参数、盐和哈希结果，便于日后校验
-
-    // 同时返回客户端原始 Token 和数据库安全哈希
+    // 对原始 Token 计算 HMAC-SHA-256
+    let token_hash = hash_access_token(&access_token, secret)?;
+    
+    // 返回原始 Token 和数据库保存的 HMAC
     Ok((access_token, token_hash))
+}
+
+/// 使用服务端密钥计算 Token 的 HMAC-SHA-256
+/// 
+/// # Arguments
+/// * `access_token`：原始 Token 字符串切片
+/// * `secret`：服务端密钥字节切片
+/// 
+/// # Returns
+/// * `Result<String, AppError>`：成功时返回 64 个十六进制字符的 HMAC，失败时返回应用错误
+fn hash_access_token(access_token: &str, secret: &[u8], ) -> Result<String, AppError> {
+    // 使用服务端密钥初始化 HMAC
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret).map_err(|_| AppError::Internal)?;
+    // 将原始 Token 作为 HMAC 的消息输入
+    mac.update(access_token.as_bytes());
+    
+    // 完成 HMAC 计算，得到 32 字节结果
+    let result = mac.finalize().into_bytes();
+    // 将 32 字节结果编码为 64 个十六进制字符
+    Ok(result.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+/// 根据客户端 Token 验证当前用户
+/// 
+/// # Arguments
+/// * `state`：应用状态，包含数据库连接池等共享资源
+/// * `access_token`：客户端提供的原始 Token 字符串切片
+/// 
+/// # Returns
+/// * `Result<User, AppError>`：成功时返回当前用户信息，失败时返回应用错误
+pub async fn authenticate(state: &AppState, access_token: &str, ) -> Result<User, AppError> {
+    // Token 不能为空
+    if access_token.is_empty() { return Err(AppError::Unauthorized); }
+    
+    // 使用同一个服务端密钥计算客户端 Token 的 HMAC
+    let token_hash = hash_access_token(access_token, state.token_hash_secret.as_bytes() )?;
+    // 根据 HMAC 直接查询有效 Session
+    let session = auth::find_active_session(&state.database_pool, &token_hash ).await?.ok_or(AppError::Unauthorized)?;
+    // 根据 Session 关联的用户 ID 查询有效用户
+    let current_user = user::find_active_user_by_id(&state.database_pool, session.user_id, ).await?.ok_or(AppError::Unauthorized)?;
+    
+    // 返回当前用户信息
+    Ok(current_user)
 }
